@@ -145,8 +145,7 @@ cat << HMSG
 Description:
   C shell script template with command line interface.
 
-Syntax:  $program [ -d[ebug] ]
-   -h | -v | [ -o <outfile> ] <infile>
+Syntax:  $program [ -d ] -h | -v | [ -o <outfile> ] <infile>
 
 Where:
   <infile>  represents the input file(s).
