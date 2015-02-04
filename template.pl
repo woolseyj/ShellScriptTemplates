@@ -19,10 +19,10 @@ Where:
   <outfile> represents the output file.
 
 Options:
-  -d[ebug]           specify debug mode.
-  -h[elp]            print program help.
-  -o[out] <outfile>  specify output filename.
-  -v[ersion]         print program version.
+  -d[ebug]          specify debug mode.
+  -h[elp]           print program help.
+  -o[ut] <outfile>  specify output filename.
+  -v[ersion]        print program version.
 
 Example Invocation:
   % $program -out ofile ifile
