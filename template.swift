@@ -1,28 +1,42 @@
-#!/usr/bin/env -i xcrun swift
+#!/usr/bin/swift
 
 ////////////////////////////////////////////////////////////////////////////////
 // Script Name: template.swift
 // Written by: John W. Woolsey
-// Copyright © 2015.  All rights reserved.
+// Copyright © 2015-16.  All rights reserved.
 // Description:
 //   Swift shell script template with command line interface.
 //   Please see the printHelp function for syntax information.
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: Send errors to StdError
 
 import Foundation
-import Darwin
+#if os(OSX)
+   import Darwin
+#elseif os(Linux)
+   import Glibc
+#endif
 
 
-// MARK: - Globals
+// MARK: - Properties
 
-// Program information
-var programRevision = "$Revision: 1.1 $"
-var programDate = "$Date: 2015/02/23 19:35:39 $"
-var programName = "template.swift"
+var outputDateFormatter: NSDateFormatter {
+   let formatter = NSDateFormatter()
+   formatter.dateFormat = "MM/dd/yyyy"
+   return formatter
+}
+let programName = (Process.arguments[0] as NSString).lastPathComponent
+var programVersion = "$Revision: 1.2 $"  // Changed automatically by RCS
+var programDate: String {
+   if let fileAttributes = try? NSFileManager.defaultManager().attributesOfItemAtPath(Process.arguments[0]),
+      modificationDate = fileAttributes["NSFileModificationDate"] as? NSDate {
+      return outputDateFormatter.stringFromDate(modificationDate)
+   } else {
+      return ""
+   }
+}
 var numberOfErrors = 0
-
-// Command line options
 var debugOption = 0
 var helpOption = 0
 var versionOption = 0
@@ -32,81 +46,76 @@ var outputFileName:String?
 // MARK: - Functions
 
 /**
-Initializes program.
-*/
+ Initializes program.
+ */
 func initProgram() {
-   let programRevisionComponents = split(programRevision, { $0 == " " }, maxSplit:Int.max, allowEmptySlices:false)
-   if programRevisionComponents.count > 1 {
-      programRevision = programRevisionComponents[1]
-   }
-   let programDateComponents = split(programDate, { $0 == " " }, maxSplit:Int.max, allowEmptySlices:false)
-   if programDateComponents.count > 1 {
-      programDate = programDateComponents[1]
-   }
-   if Process.arguments.count > 0 {
-      programName = Process.arguments[0].lastPathComponent
+   let programVersionComponents = programVersion.characters.split(" ").map(String.init)
+   if programVersionComponents.count > 1 {
+      programVersion = programVersionComponents[1]
    }
 }
 
 
 /**
-Prints program version.
-*/
+ Prints program version.
+ */
 func printVersion() {
-   println("\(programName)  \(programRevision)  \(programDate)")
+   print("\(programName)  \(programVersion)  \(programDate)")
 }
 
 
 /**
-Prints program help message.
-*/
+ Prints program help message.
+ */
 func printHelp() {
    printVersion()
-   println()
-   println("Description:")
-   println("  Swift shell script template with command line interface.\n")
-   println("Syntax: \(programName) [ -d ] -h | -v | [ -o <outfile> ] <infile>\n")
-   println("Where:")
-   println("  <infile>  represents the input text (.txt) file(s).")
-   println("  <outfile> represents the output text file.\n")
-   println("Options:")
-   println("  -d            specify debug mode.")
-   println("  -h            print program help.")
-   println("  -o <outfile>  specify output file name.")
-   println("  -v            print program version.\n")
-   println("Example Invocation:")
-   println("  % \(programName) -o ofile.txt ifile.txt")
+   // MARK: Program Syntax
+   print("")
+   print("Description:")
+   print("  Swift based command line program template.\n")
+   print("Syntax: \(programName) [ -d ] -h | -v | [ -o <outfile> ] <infile>\n")
+   print("Where:")
+   print("  <infile>  represents the input text (.txt) file(s).")
+   print("  <outfile> represents the output text file.\n")
+   print("Options:")
+   print("  -d            specify debug mode.")
+   print("  -h            print program help.")
+   print("  -o <outfile>  specify output file name.")
+   print("  -v            print program version.\n")
+   print("Example Invocation:")
+   print("  % \(programName) input.txt")
+   print("  % \(programName) -o ofile.txt ifile.txt")
 }
 
 
 /**
-Finalizes and ends program.
-*/
+ Finalizes and ends program.
+ */
 func endProgram() {
    if debugOption != 0 {
-      println("\(programName): DEBUG - Program ended with exit code of '\(numberOfErrors)'")
+      print("\(programName): DEBUG - Program ended with exit code of '\(numberOfErrors)'.")
    }
    exit(Int32(numberOfErrors))
 }
 
 
 /**
-Get command line options.
-
-:returns: The number of processed command line arguments.
-*/
+ Get command line options.
+ 
+ - returns: The number of processed command line arguments.
+ */
 func getOptions() -> Int {
    var argumentsProcessedCount = 1
    let pattern = "dho:v"
-   var buffer = Array(pattern.utf8).map { Int8($0) }
-   if C_ARGC < 2 {  // check for command line arguments
-      println("\(programName): ERROR - Missing command line arguments")
+   let buffer = Array(pattern.utf8).map { Int8($0) }
+   if Process.argc < 2 {  // check for command line arguments
+      print("\(programName): ERROR - Missing command line arguments.")
       numberOfErrors += 1
       printHelp()
       endProgram()
    }
    while true {
-      let option = Int(getopt(C_ARGC, C_ARGV, buffer))
+      let option = Int(getopt(Process.argc, Process.unsafeArgv, buffer))
       if option == -1 { break }  // no more options available
       argumentsProcessedCount += 1
       switch "\(UnicodeScalar(option))" {
@@ -119,13 +128,13 @@ func getOptions() -> Int {
          argumentsProcessedCount += 1
          if let fileName = outputFileName {
             if fileName.hasPrefix("-") {
-               println("\(programName): ERROR - Missing output file name")
+               print("\(programName): ERROR - Missing output file name.")
                numberOfErrors += 1
                printHelp()
                endProgram()
             }
          } else {
-            println("\(programName): ERROR - Could not retrieve output file name")
+            print("\(programName): ERROR - Could not retrieve output file name.")
             numberOfErrors += 1
             printHelp()
             endProgram()
@@ -133,7 +142,7 @@ func getOptions() -> Int {
       case "v":  // print version message
          versionOption = 1
       default:
-         println("\(programName): ERROR - Could not retrieve an argument")
+         print("\(programName): ERROR - Could not retrieve an argument.")
          numberOfErrors += 1
          printHelp()
          endProgram()
@@ -144,14 +153,14 @@ func getOptions() -> Int {
 
 
 /**
-Processes command line options.
-*/
+ Processes command line options.
+ */
 func processOptions() {
    if debugOption != 0 {
-      println("\(programName): DEBUG - Running in debug mode")
-      println("\(programName): DEBUG - Arguments are \(Process.arguments)")
+      print("\(programName): DEBUG - Running in debug mode.")
+      print("\(programName): DEBUG - Arguments are \(Process.arguments).")
       if let fileName = outputFileName {
-         println("\(programName): DEBUG - Output file name is '\(fileName)'")
+         print("\(programName): DEBUG - Output file name is '\(fileName)'.")
       }
    }
    if helpOption != 0 {
@@ -165,32 +174,34 @@ func processOptions() {
 
 
 /**
-Processes input files.
-
-:param: inputFileNames The input file names.
-
-:returns: The result of processing the input files.
-*/
+ Processes input files.
+ 
+ - parameter inputFileNames: The input file names.
+ 
+ - returns: The result of processing the input files.
+ */
 func processFiles(inputFileNames:[String]) -> String {
    var results = ""
    let fileManager = NSFileManager.defaultManager()
    for fileName in inputFileNames {
       if debugOption != 0 {
-         println("\(programName): DEBUG - Processing file '\(fileName)'")
+         print("\(programName): DEBUG - Processing file '\(fileName)'.")
       }
       if !fileName.lowercaseString.hasSuffix(".txt") || !fileManager.fileExistsAtPath(fileName) {
-         println("\(programName): ERROR - Could not read from file '\(fileName)'")
+         print("\(programName): ERROR - Could not read from file '\(fileName)'.")
          numberOfErrors += 1
          continue
       }
-      if let fileContents = String(contentsOfFile:fileName, encoding:NSUTF8StringEncoding, error:nil) {
+      do {
+         let fileContents = try String(contentsOfFile: fileName, encoding: NSUTF8StringEncoding)
          for row in fileContents.componentsSeparatedByString("\n") {  // rows separated by new lines
-            if countElements(row) > 0 {
+            if row.characters.count > 0 {
+               // TODO: Do file processing here
                results += programName + ": " + row + "\n"
             }
          }
-      } else {
-         println("\(programName): ERROR - Could not read from file '\(fileName)'")
+      } catch let error as NSError {
+         print("\(programName): ERROR - Could not read from file '\(fileName)'.  \(error.localizedDescription)")
          numberOfErrors += 1
       }
    }
@@ -199,17 +210,17 @@ func processFiles(inputFileNames:[String]) -> String {
 
 
 /**
-Prints results.
-
-:param: results The contents to print.
-*/
+ Prints results.
+ 
+ - parameter results: The contents to print.
+ */
 func printResults(results:String) {
-   if countElements(results) > 0 {
+   if results.characters.count > 0 {
       if let fileName = outputFileName {
-         var fileError:NSError?
-         results.writeToFile(fileName, atomically:false, encoding:NSUTF8StringEncoding, error:&fileError);
-         if fileError != nil {
-            println("\(programName): ERROR - Could not write to file '\(fileName)'")
+         do {
+            try results.writeToFile(fileName, atomically: false, encoding: NSUTF8StringEncoding)
+         } catch let error as NSError {
+            print("\(programName): ERROR - Could not write to file '\(fileName)'.  \(error.localizedDescription)")
             numberOfErrors += 1
          }
       } else {
@@ -239,6 +250,9 @@ endProgram()
 // Revision History
 //
 // $Log: template.swift,v $
+// Revision 1.2  2016/06/10 15:19:05  woolsey
+// Updated to Swift 2.2 syntax.
+//
 // Revision 1.1  2015/02/23 19:35:39  woolsey
 // Initial revision
 //
