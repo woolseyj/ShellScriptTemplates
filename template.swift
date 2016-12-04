@@ -9,7 +9,6 @@
 //   Please see the printHelp function for syntax information.
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Send errors to StdError
 
 import Foundation
 #if os(OSX)
@@ -19,54 +18,62 @@ import Foundation
 #endif
 
 
+// MARK: - Enumerations
+
+enum ConsoleOutputType {
+   case standard
+   case debug
+   case warning
+   case error
+}
+
+
 // MARK: - Properties
 
-var outputDateFormatter: NSDateFormatter {
-   let formatter = NSDateFormatter()
+// Program information
+var outputDateFormatter: DateFormatter {
+   let formatter = DateFormatter()
    formatter.dateFormat = "MM/dd/yyyy"
    return formatter
 }
-let programName = (Process.arguments[0] as NSString).lastPathComponent
-var programVersion = "$Revision: 1.2 $"  // Changed automatically by RCS
+let programPath = CommandLine.arguments[0]
+let programName = (programPath as NSString).lastPathComponent
+var programVersion = "$Revision: 1.3 $"  // Changed automatically by RCS
 var programDate: String {
-   if let fileAttributes = try? NSFileManager.defaultManager().attributesOfItemAtPath(Process.arguments[0]),
-      modificationDate = fileAttributes["NSFileModificationDate"] as? NSDate {
-      return outputDateFormatter.stringFromDate(modificationDate)
+   if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: programPath),
+      let fileModificationDate = fileAttributes[FileAttributeKey.modificationDate] as? Date {
+      return outputDateFormatter.string(from: fileModificationDate)
    } else {
       return ""
    }
 }
 var numberOfErrors = 0
-var debugOption = 0
-var helpOption = 0
-var versionOption = 0
+
+// Command line options
+var debugOption = false
+var helpOption = false
+var versionOption = false
 var outputFileName:String?
 
 
 // MARK: - Functions
 
-/**
- Initializes program.
- */
+/// Initializes program.
 func initProgram() {
-   let programVersionComponents = programVersion.characters.split(" ").map(String.init)
+   let programVersionComponents = programVersion.components(separatedBy: " ")
    if programVersionComponents.count > 1 {
       programVersion = programVersionComponents[1]
    }
 }
 
 
-/**
- Prints program version.
- */
+/// Prints program version.
 func printVersion() {
    print("\(programName)  \(programVersion)  \(programDate)")
 }
 
 
-/**
- Prints program help message.
- */
+/// Prints program help message.
 func printHelp() {
    printVersion()
    // MARK: Program Syntax
@@ -88,61 +95,51 @@ func printHelp() {
 }
 
 
-/**
- Finalizes and ends program.
- */
+/// Finalizes and ends program.
 func endProgram() {
-   if debugOption != 0 {
-      print("\(programName): DEBUG - Program ended with exit code of '\(numberOfErrors)'.")
+   if debugOption {
+      writeMessage("Program ended with exit code of '\(numberOfErrors)'.", to: .debug)
    }
    exit(Int32(numberOfErrors))
 }
 
 
-/**
- Get command line options.
- 
- - returns: The number of processed command line arguments.
- */
+/// Gets command line options.
+///
+/// - Returns: The number of processed command line arguments.
 func getOptions() -> Int {
    var argumentsProcessedCount = 1
    let pattern = "dho:v"
    let buffer = Array(pattern.utf8).map { Int8($0) }
-   if Process.argc < 2 {  // check for command line arguments
-      print("\(programName): ERROR - Missing command line arguments.")
-      numberOfErrors += 1
-      printHelp()
-      endProgram()
-   }
    while true {
-      let option = Int(getopt(Process.argc, Process.unsafeArgv, buffer))
+      let option = Int(getopt(CommandLine.argc, CommandLine.unsafeArgv, buffer))
       if option == -1 { break }  // no more options available
       argumentsProcessedCount += 1
-      switch "\(UnicodeScalar(option))" {
+      switch "\(UnicodeScalar(UInt8(option)))" {
       case "d":  // debug mode
-         debugOption = 1
+         debugOption = true
       case "h":  // print help message
-         helpOption = 1
+         helpOption = true
       case "o":  // output file specified
-         outputFileName = String.fromCString(optarg)
+         outputFileName = String(cString: optarg)
          argumentsProcessedCount += 1
          if let fileName = outputFileName {
             if fileName.hasPrefix("-") {
-               print("\(programName): ERROR - Missing output file name.")
+               writeMessage("Missing output file name.", to: .error)
                numberOfErrors += 1
                printHelp()
                endProgram()
             }
          } else {
-            print("\(programName): ERROR - Could not retrieve output file name.")
+            writeMessage("Could not retrieve output file name.", to: .error)
             numberOfErrors += 1
             printHelp()
             endProgram()
          }
       case "v":  // print version message
-         versionOption = 1
+         versionOption = true
       default:
-         print("\(programName): ERROR - Could not retrieve an argument.")
+         writeMessage("Could not retrieve an argument.", to: .error)
          numberOfErrors += 1
          printHelp()
          endProgram()
@@ -152,56 +149,51 @@ func getOptions() -> Int {
 }
 
 
-/**
- Processes command line options.
- */
+/// Processes command line options.
 func processOptions() {
-   if debugOption != 0 {
-      print("\(programName): DEBUG - Running in debug mode.")
-      print("\(programName): DEBUG - Arguments are \(Process.arguments).")
+   if debugOption {
+      writeMessage("Running in debug mode.", to: .debug)
+      writeMessage("Arguments are \(CommandLine.arguments).", to: .debug)
       if let fileName = outputFileName {
-         print("\(programName): DEBUG - Output file name is '\(fileName)'.")
+         writeMessage("Output file name is '\(fileName)'.", to: .debug)
       }
    }
-   if helpOption != 0 {
+   if helpOption {
       printHelp()
       endProgram()
-   } else if versionOption != 0 {
+   } else if versionOption {
       printVersion()
       endProgram()
    }
 }
 
 
-/**
- Processes input files.
- 
- - parameter inputFileNames: The input file names.
- 
- - returns: The result of processing the input files.
- */
-func processFiles(inputFileNames:[String]) -> String {
+/// Processes input files.
+///
+/// - Parameter inputFileNames: The input file names.
+/// - Returns: The result of processing the input files.
+func processFiles(_ inputFileNames:[String]) -> String {
    var results = ""
-   let fileManager = NSFileManager.defaultManager()
+   let fileManager = FileManager.default
    for fileName in inputFileNames {
-      if debugOption != 0 {
-         print("\(programName): DEBUG - Processing file '\(fileName)'.")
+      if debugOption {
+         writeMessage("Processing file '\(fileName)'.", to: .debug)
       }
-      if !fileName.lowercaseString.hasSuffix(".txt") || !fileManager.fileExistsAtPath(fileName) {
-         print("\(programName): ERROR - Could not read from file '\(fileName)'.")
+      if !fileName.lowercased().hasSuffix(".txt") || !fileManager.fileExists(atPath: fileName) {
+         writeMessage("Could not read from file '\(fileName)'.", to: .error)
          numberOfErrors += 1
          continue
       }
       do {
-         let fileContents = try String(contentsOfFile: fileName, encoding: NSUTF8StringEncoding)
-         for row in fileContents.componentsSeparatedByString("\n") {  // rows separated by new lines
+         let fileContents = try String(contentsOfFile: fileName, encoding: String.Encoding.utf8)
+         for row in fileContents.components(separatedBy: "\n") {  // rows separated by new lines
             if row.characters.count > 0 {
                // TODO: Do file processing here
                results += programName + ": " + row + "\n"
             }
          }
-      } catch let error as NSError {
-         print("\(programName): ERROR - Could not read from file '\(fileName)'.  \(error.localizedDescription)")
+      } catch let error {
+         writeMessage("Could not read from file '\(fileName)'.  \(error.localizedDescription)", to: .error)
          numberOfErrors += 1
       }
    }
@@ -209,18 +201,16 @@ func processFiles(inputFileNames:[String]) -> String {
 }
 
 
-/**
- Prints results.
- 
- - parameter results: The contents to print.
- */
-func printResults(results:String) {
+/// Prints results.
+///
+/// - Parameter results: The contents to print.
+func printResults(_ results:String) {
    if results.characters.count > 0 {
       if let fileName = outputFileName {
          do {
-            try results.writeToFile(fileName, atomically: false, encoding: NSUTF8StringEncoding)
-         } catch let error as NSError {
-            print("\(programName): ERROR - Could not write to file '\(fileName)'.  \(error.localizedDescription)")
+            try results.write(toFile: fileName, atomically: false, encoding: String.Encoding.utf8)
+         } catch let error {
+            writeMessage("Could not write to file '\(fileName)'.  \(error.localizedDescription)", to: .error)
             numberOfErrors += 1
          }
       } else {
@@ -230,13 +220,42 @@ func printResults(results:String) {
 }
 
 
+/// Writes a message to the console.
+///
+/// Messages with .debug, .warning, and .error types are prepended with the associated type.
+///
+/// The .standard and .debug types are sent to STDOUT, whereas .warning and .error types are sent to STDERR.
+///
+/// - Parameters:
+///   - message: The message to write.
+///   - to: The message type.  One of .standard (default), .debug, .warning, or .error must be used.
+func writeMessage(_ message: String, to: ConsoleOutputType = .standard) {
+   switch to {
+   case .standard:
+      print("\(programName): \(message)")
+   case .debug:
+      print("\(programName): DEBUG - \(message)")
+   case .warning:
+      fputs("\(programName): Warning - \(message)\n", stderr)
+   case .error:
+      fputs("\(programName): ERROR - \(message)\n", stderr)
+   }
+}
+
+
 // MARK: - Main Section
 
 initProgram()
 let argumentsProcessedCount = getOptions()
 processOptions()
+if CommandLine.arguments.count <= argumentsProcessedCount {  // check for file arguments
+   writeMessage("Missing command line arguments.", to: .error)
+   numberOfErrors += 1
+   printHelp()
+   endProgram()
+}
 var inputFileNames = [String]()
-for argument in Process.arguments[argumentsProcessedCount..<Process.arguments.count] {
+for argument in CommandLine.arguments[argumentsProcessedCount..<CommandLine.arguments.count] {
    inputFileNames.append(argument)
 }
 let results = processFiles(inputFileNames)
@@ -250,6 +269,9 @@ endProgram()
 // Revision History
 //
 // $Log: template.swift,v $
+// Revision 1.3  2016/12/04 16:03:03  woolsey
+// Migrated to Swift 3.0.
+//
 // Revision 1.2  2016/06/10 15:19:05  woolsey
 // Updated to Swift 2.2 syntax.
 //
