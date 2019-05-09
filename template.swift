@@ -3,7 +3,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Script Name: template.swift
 // Written by: John W. Woolsey
-// Copyright © 2015-16.  All rights reserved.
+// Copyright © 2015.  All rights reserved.
 // Description:
 //   Swift shell script template with command line interface.
 //   Please see the printHelp function for syntax information.
@@ -11,7 +11,7 @@
 
 
 import Foundation
-#if os(OSX)
+#if os(macOS)
    import Darwin
 #elseif os(Linux)
    import Glibc
@@ -38,7 +38,7 @@ var outputDateFormatter: DateFormatter {
 }
 let programPath = CommandLine.arguments[0]
 let programName = (programPath as NSString).lastPathComponent
-var programVersion = "$Revision: 1.3 $"  // Changed automatically by RCS
+var programVersion = "$Revision: 1.5 $"  // Changed automatically by RCS
 var programDate: String {
    if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: programPath),
       let fileModificationDate = fileAttributes[FileAttributeKey.modificationDate] as? Date {
@@ -187,7 +187,7 @@ func processFiles(_ inputFileNames:[String]) -> String {
       do {
          let fileContents = try String(contentsOfFile: fileName, encoding: String.Encoding.utf8)
          for row in fileContents.components(separatedBy: "\n") {  // rows separated by new lines
-            if row.characters.count > 0 {
+            if row.count > 0 {
                // TODO: Do file processing here
                results += programName + ": " + row + "\n"
             }
@@ -205,7 +205,7 @@ func processFiles(_ inputFileNames:[String]) -> String {
 ///
 /// - Parameter results: The contents to print.
 func printResults(_ results:String) {
-   if results.characters.count > 0 {
+   if results.count > 0 {
       if let fileName = outputFileName {
          do {
             try results.write(toFile: fileName, atomically: false, encoding: String.Encoding.utf8)
@@ -269,6 +269,12 @@ endProgram()
 // Revision History
 //
 // $Log: template.swift,v $
+// Revision 1.5  2019/05/09 01:31:46  woolsey
+// Changed OSX to macOS in compiler directive.
+//
+// Revision 1.4  2019/05/08 21:42:14  woolsey
+// Updated to Swift 5.0 compatibility.
+//
 // Revision 1.3  2016/12/04 16:03:03  woolsey
 // Migrated to Swift 3.0.
 //
